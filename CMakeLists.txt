@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.25)
 
 #
 # Project details
@@ -18,6 +18,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "") # works
 include(cmake/StandardSettings.cmake)
 include(cmake/StaticAnalyzers.cmake)
 include(cmake/Utils.cmake)
+include(cmake/CPM.cmake)
+include(cmake/ProjectStandard.cmake)
+
+project_detect_cxx_standard(PROJECT_CXX_STANDARD)
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Debug")
 endif()
@@ -47,13 +51,6 @@ endif()
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
   message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there.\n")
 endif()
-
-#
-# Enable package managers
-#
-
-include(cmake/Conan.cmake)
-include(cmake/Vcpkg.cmake)
 
 #
 # Create library, setup header and source files
@@ -87,7 +84,7 @@ elseif(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
 
   if(${PROJECT_NAME}_VERBOSE_OUTPUT)
     verbose_message("Found the following headers:")
-    foreach(header IN LIST headers)
+    foreach(header IN LISTS headers)
       verbose_message("* ${header}")
     endforeach()
   endif()
@@ -134,18 +131,17 @@ message(STATUS "Added all header and implementation files.\n")
 #
 
 if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
-  target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_17)
+  project_apply_cxx_standard(${PROJECT_NAME} INTERFACE)
 else()
-  target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+  project_apply_cxx_standard(${PROJECT_NAME} PUBLIC)
 
   if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-    target_compile_features(${PROJECT_NAME}_LIB PUBLIC cxx_std_17)
+    project_apply_cxx_standard(${PROJECT_NAME}_LIB PUBLIC)
   endif()
 endif()
 include(cmake/CompilerWarnings.cmake)
 set_project_warnings(${PROJECT_NAME})
-
-verbose_message("Applied compiler warnings. Using standard ${CMAKE_CXX_STANDARD}.\n")
+verbose_message("Applied compiler warnings. Using standard C++${PROJECT_CXX_STANDARD}.\n")
 
 #
 # Enable Doxygen
@@ -158,21 +154,23 @@ include(cmake/Doxygen.cmake)
 #
 
 # Identify and link with the specific "packages" the project uses
-#find_package(package_name package_version REQUIRED package_type [other_options])
+#CPMAddPackage(
+#  NAME dependency1
+#  GITHUB_REPOSITORY owner/dependency1
+#  VERSION 1.2.3
+#  OPTIONS
+#    "DEPENDENCY1_BUILD_TESTS OFF"
+#)
 #target_link_libraries(
 #  ${PROJECT_NAME}
 #  PUBLIC
-#    dependency1 ...
-#  PRIVATE
-#    dependency2 ...
-#    ${PROJECT_NAME}_PROJECT_OPTIONS
-#    ${PROJECT_NAME}_PROJECT_WARNINGS
+#    dependency1::dependency1
 #)
 #if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
 #  target_link_libraries(
 #    ${PROJECT_NAME}_LIB
 #    PUBLIC
-#      dependency1 ...
+#      dependency1::dependency1
 #  )
 #endif()
 

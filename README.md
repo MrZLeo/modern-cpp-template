@@ -6,195 +6,148 @@
 
 # Modern C++ Template
 
-A quick C++ template for modern CMake projects, aimed to be an easy to use
-starting point.
-
-This is my personal take on such a type of template, thus I might not use the
-best practices or you might disagree with how I do things. Any and all feedback
-is greatly appreciated!
+A compact starting point for modern CMake-based C++ projects.
 
 ## Features
 
-* Modern **CMake** configuration and project, which, to the best of my
-knowledge, uses the best practices,
+* Modern **CMake** project layout with install/export support
+* **CPM.cmake v0.42.0** as the only dependency mechanism
+* **Catch2 v3.11.0** as the only unit test framework
+* Automatic C++ standard selection: requires **at least C++20**, and upgrades to **C++23** or **C++26** when the active compiler supports it
+* Optional **Clang-Tidy** and **Cppcheck** integration
+* Optional **Doxygen** documentation target
+* Optional **code coverage**, **LTO**, **ASAN**, and **ccache**
+* GitHub Actions workflows for **Ubuntu**, **macOS**, **Windows**, and tagged releases
+* A permissive [Unlicense](https://unlicense.org/) license
 
-* An example of a **Clang-Format** config, inspired from the base *Google* model,
-with minor tweaks. This is aimed only as a starting point, as coding style
-is a subjective matter, everyone is free to either delete it (for the *LLVM*
-default) or supply their own alternative,
+## Requirements
 
-* **Static analyzers** integration, with *Clang-Tidy* and *Cppcheck*, the former
-being the default option,
+To use the template as shipped, you need:
 
-* **Doxygen** support, through the `ENABLE_DOXYGEN` option, which you can enable
-if you wish to use it,
+* **CMake 3.25+**
+* A C++ compiler with **at least C++20** support
+* Network access during configure when CPM needs to download dependencies
 
-* **Unit testing** support, through *GoogleTest* (with an option to enable
-*GoogleMock*) or *Catch2*,
+At configure time, the template inspects `CMAKE_CXX_COMPILE_FEATURES` and selects:
 
-* **Code coverage**, enabled by using the `ENABLE_CODE_COVERAGE` option, through
-*Codecov* CI integration,
+* `C++26` when `cxx_std_26` is available
+* otherwise `C++23` when `cxx_std_23` is available
+* otherwise `C++20`
 
-* **Package manager support**, with *Conan* and *Vcpkg*, through their respective
-options
-
-* **CI workflows for Windows, Linux and MacOS** using *GitHub Actions*, making
-use of the caching features, to ensure minimum run time,
-
-* **.md templates** for: *README*, *Contributing Guideliness*,
-*Issues* and *Pull Requests*,
-
-* **Permissive license** to allow you to integrate it as easily as possible. The
-template is licensed under the [Unlicense](https://unlicense.org/),
-
-* Options to build as a header-only library or executable, not just a static or
-shared library.
-
-* **Ccache** integration, for speeding up rebuild times
+If the compiler cannot support C++20, configuration fails with a clear error.
 
 ## Getting Started
 
-These instructions will get you a copy of the project up and running on your local
-machine for development and testing purposes.
+Create your project from this template, then rename the project-specific placeholders:
 
-### Prerequisites
+1. Change the project name in [CMakeLists.txt](CMakeLists.txt) from `Project` to your real project name.
+2. Create `include/<your-project>/` and move or rename the sample headers accordingly.
+3. Update [cmake/SourcesAndHeaders.cmake](cmake/SourcesAndHeaders.cmake) with your real source, header, and test files.
+4. Rename [cmake/ProjectConfig.cmake.in](cmake/ProjectConfig.cmake.in) so the file name starts with your exact project name, for example `cmake/MyNewProjectConfig.cmake.in`.
+5. Update any remaining `Project_...` option names in workflows, scripts, and docs once the project name changes.
 
-This project is meant to be only a template, thus versions of the software used
-can be change to better suit the needs of the developer(s). If you wish to use the
-template *as-is*, meaning using the versions recommended here, then you will need:
+The template defaults to a library build. If you want to build an executable, add a `src/main.cpp` and enable `Project_BUILD_EXECUTABLE=ON`.
 
-* **CMake v3.15+** - found at [https://cmake.org/](https://cmake.org/)
-
-* **C++ Compiler** - needs to support at least the **C++17** standard, i.e. *MSVC*,
-*GCC*, *Clang*
-
-> ***Note:*** *You also need to be able to provide ***CMake*** a supported
-[generator](https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html).*
-
-### Installing
-
-It is fairly easy to install the project, all you need to do is clone if from
-[GitHub](https://github.com/filipdutescu/modern-cpp-template) or
-[generate a new repository from it](https://github.com/filipdutescu/modern-cpp-template/generate)
-(also on **GitHub**).
-
-If you wish to clone the repository, rather than generate from it, you simply need
-to run:
+## Building
 
 ```bash
-git clone https://github.com/filipdutescu/modern-cpp-template/
+cmake -S . -B build \
+  -DCMAKE_INSTALL_PREFIX=/absolute/path/to/install \
+  -DCPM_SOURCE_CACHE=$HOME/.cache/CPM
+
+cmake --build build
+cmake --build build --target install
 ```
 
-After finishing getting a copy of the project, with any of the methods above, create
-a new folder in the `include/` folder, with the name of your project.  Edit
-`cmake/SourcesAndHeaders.cmake` to add your files.
+`CPM_SOURCE_CACHE` is optional, but strongly recommended for faster repeated builds and CI runs.
 
-You will also need to rename the `cmake/ProjectConfig.cmake.in` file to start with
-the ***exact name of your project***. Such as `cmake/MyNewProjectConfig.cmake.in`.
-You should also make the same changes in the GitHub workflows provided, notably
-[`.github/workflows/ubuntu.yml`](.github/workflows/ubuntu.yml), in which you should
-replace the CMake option `-DProject_ENABLE_CODE_COVERAGE=1` to
-`-DMyNewProject_ENABLE_CODE_COVERAGE=1`.
-
-Finally, change `"Project"` from `CMakeLists.txt`, from
-
-```cmake
-project(
-  "Project"
-  VERSION 0.1.0
-  LANGUAGES CXX
-)
-```
-
-to the ***exact name of your project***, i.e. using the previous name it will become:
-
-```cmake
-project(
-  MyNewProject
-  VERSION 0.1.0
-  LANGUAGES CXX
-)
-```
-
-To install an already built project, you need to run the `install` target with CMake.
-For example:
+If you only want to build the library without tests:
 
 ```bash
-cmake --build build --target install --config Release
-
-# a more general syntax for that command is:
-cmake --build <build_directory> --target install --config <desired_config>
+cmake -S . -B build \
+  -DCMAKE_INSTALL_PREFIX=/absolute/path/to/install \
+  -DCPM_SOURCE_CACHE=$HOME/.cache/CPM \
+  -DProject_ENABLE_UNIT_TESTING=OFF
 ```
 
-## Building the project
+## Testing
 
-To build the project, all you need to do, ***after correctly
-[installing the project](README.md#Installing)***, is run a similar **CMake** routine
-to the the one below:
+Unit testing is enabled by default and uses **Catch2 v3** through CPM. No preinstalled Catch2 package is required.
 
 ```bash
-mkdir build/ && cd build/
-cmake .. -DCMAKE_INSTALL_PREFIX=/absolute/path/to/custom/install/directory
-cmake --build . --target install
+cmake -S . -B build -DCPM_SOURCE_CACHE=$HOME/.cache/CPM
+cmake --build build
+ctest --test-dir build -C Debug -VV
 ```
 
-> ***Note:*** *The custom ``CMAKE_INSTALL_PREFIX`` can be omitted if you wish to
-install in [the default install location](https://cmake.org/cmake/help/latest/module/GNUInstallDirs.html).*
-
-More options that you can set for the project can be found in the
-[`cmake/StandardSettings.cmake` file](cmake/StandardSettings.cmake). For certain
-options additional configuration may be needed in their respective `*.cmake` files
-(i.e. Conan needs the `CONAN_REQUIRES` and might need the `CONAN_OPTIONS` to be setup
-for it work correctly; the two are set in the [`cmake/Conan.cmake` file](cmake/Conan.cmake)).
-
-## Generating the documentation
-
-In order to generate documentation for the project, you need to configure the build
-to use Doxygen. This is easily done, by modifying the workflow shown above as follows:
+If you prefer to skip tests entirely:
 
 ```bash
-mkdir build/ && cd build/
-cmake .. -D<project_name>_ENABLE_DOXYGEN=1 -DCMAKE_INSTALL_PREFIX=/absolute/path/to/custom/install/directory
-cmake --build . --target doxygen-docs
+cmake -S . -B build -DProject_ENABLE_UNIT_TESTING=OFF
 ```
 
-> ***Note:*** *This will generate a `docs/` directory in the **project's root directory**.*
+## Documentation
 
-## Running the tests
-
-By default, the template uses [Google Test](https://github.com/google/googletest/)
-for unit testing. Unit testing can be disabled in the options, by setting the
-`ENABLE_UNIT_TESTING` (from
-[cmake/StandardSettings.cmake](cmake/StandardSettings.cmake)) to be false. To run
-the tests, simply use CTest, from the build directory, passing the desire
-configuration for which to run tests for. An example of this procedure is:
+Enable Doxygen and build the `doxygen-docs` target:
 
 ```bash
-cd build          # if not in the build directory already
-ctest -C Release  # or `ctest -C Debug` or any other configuration you wish to test
+cmake -S . -B build \
+  -DProject_ENABLE_DOXYGEN=ON \
+  -DProject_ENABLE_UNIT_TESTING=OFF
 
-# you can also run tests with the `-VV` flag for a more verbose output (i.e.
-#GoogleTest output as well)
+cmake --build build --target doxygen-docs
 ```
 
-### End to end tests
+This generates documentation under `docs/`.
 
-If applicable, should be presented here.
+## Common Options
 
-### Coding style tests
+The main project options live in [cmake/StandardSettings.cmake](cmake/StandardSettings.cmake).
 
-If applicable, should be presented here.
+Useful examples:
+
+* `Project_BUILD_EXECUTABLE=ON`
+* `Project_BUILD_HEADERS_ONLY=ON`
+* `Project_ENABLE_UNIT_TESTING=OFF`
+* `Project_ENABLE_CLANG_TIDY=ON`
+* `Project_ENABLE_CPPCHECK=ON`
+* `Project_ENABLE_CODE_COVERAGE=ON`
+* `Project_ENABLE_DOXYGEN=ON`
+* `Project_ENABLE_LTO=ON`
+* `Project_ENABLE_ASAN=ON`
+
+## Make Targets
+
+The included [Makefile](Makefile) provides shortcuts for local development:
+
+* `make test`
+* `make coverage`
+* `make docs`
+* `make install`
+* `make format`
+
+These targets use a local `.cpm-cache/` directory automatically.
+
+## Continuous Integration
+
+GitHub Actions workflows are included for:
+
+* Ubuntu build, test, coverage, and install
+* macOS build, test, and install
+* Windows build, test, and install
+* Tagged release archives
+
+All workflows cache `CPM_SOURCE_CACHE` so Catch2 and future CPM-managed dependencies are reused across runs.
+
+To skip CI on a particular commit, include either `[skip ci]` or `[ci skip]` in the commit message.
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our how you can
-become a contributor and the process for submitting pull requests to us.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for contribution and pull request guidelines.
 
 ## Versioning
 
-This project makes use of [SemVer](http://semver.org/) for versioning. A list of
-existing versions can be found in the
-[project's releases](https://github.com/filipdutescu/modern-cpp-template/releases).
+This project follows [SemVer](https://semver.org/).
 
 ## Authors
 
@@ -202,5 +155,4 @@ existing versions can be found in the
 
 ## License
 
-This project is licensed under the [Unlicense](https://unlicense.org/) - see the
-[LICENSE](LICENSE) file for details
+This template is licensed under the [Unlicense](https://unlicense.org/). See [LICENSE](LICENSE) for details.

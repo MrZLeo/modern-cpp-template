@@ -24,21 +24,23 @@ for line in sys.stdin:
 endef
 export PRINT_HELP_PYSCRIPT
 
-BROWSER := python -c "$$BROWSER_PYSCRIPT"
+BROWSER := python3 -c "$$BROWSER_PYSCRIPT"
 INSTALL_LOCATION := ~/.local
+CPM_SOURCE_CACHE := $(CURDIR)/.cpm-cache
+CMAKE_FLAGS := -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION) -DCPM_SOURCE_CACHE=$(CPM_SOURCE_CACHE)
 
 help:
-	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
+	@python3 -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
 
 test: ## run tests quickly with ctest
 	rm -rf build/
-	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION) -Dmodern-cpp-template_ENABLE_UNIT_TESTING=1 -DCMAKE_BUILD_TYPE="Release"
+	cmake -Bbuild $(CMAKE_FLAGS) -DProject_ENABLE_UNIT_TESTING=ON -DCMAKE_BUILD_TYPE="Release"
 	cmake --build build --config Release
 	cd build/ && ctest -C Release -VV
 
 coverage: ## check code coverage quickly GCC
 	rm -rf build/
-	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION) -Dmodern-cpp-template_ENABLE_CODE_COVERAGE=1
+	cmake -Bbuild $(CMAKE_FLAGS) -DProject_ENABLE_UNIT_TESTING=ON -DProject_ENABLE_CODE_COVERAGE=ON
 	cmake --build build --config Release
 	cd build/ && ctest -C Release -VV
 	cd .. && (bash -c "find . -type f -name '*.gcno' -exec gcov -pb {} +" || true)
@@ -46,18 +48,18 @@ coverage: ## check code coverage quickly GCC
 docs: ## generate Doxygen HTML documentation, including API docs
 	rm -rf docs/
 	rm -rf build/
-	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION) -DProject_ENABLE_DOXYGEN=1
+	cmake -Bbuild $(CMAKE_FLAGS) -DProject_ENABLE_UNIT_TESTING=OFF -DProject_ENABLE_DOXYGEN=ON
 	cmake --build build --config Release
 	cmake --build build --target doxygen-docs
 	$(BROWSER) docs/html/index.html
 
 install: ## install the package to the `INSTALL_LOCATION`
 	rm -rf build/
-	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION)
+	cmake -Bbuild $(CMAKE_FLAGS) -DProject_ENABLE_UNIT_TESTING=OFF
 	cmake --build build --config Release
 	cmake --build build --target install --config Release
 
 format: ## format the project sources
 	rm -rf build/
-	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION)
+	cmake -Bbuild $(CMAKE_FLAGS) -DProject_ENABLE_UNIT_TESTING=OFF
 	cmake --build build --target clang-format

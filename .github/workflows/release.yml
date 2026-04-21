@@ -8,6 +8,7 @@ on:
 env:
   PROJECT_NAME: "modern-cpp-template"
   BUILD_TYPE: Release
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
 
 jobs:
   build:
@@ -61,34 +62,39 @@ jobs:
       with:
         submodules: recursive
 
-    - name: cache dependencies
+    - name: cache CPM downloads
       uses: actions/cache@v4
-      id: cache
       with:
-        path: ${{ github.HOME }}/.local
-        key: ${{ runner.os }}-dependencies-${{ hashFiles('CMakeLists.txt') }}
+        path: ${{ env.CPM_SOURCE_CACHE }}
+        key: ${{ runner.os }}-cpm-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'test/**') }}
 
-    - name: install GoogleTest
-      if: ${{ steps.cache.outputs.cache-hit != 'true' }}
-      run: |
-        cd ..
-        git clone https://github.com/google/googletest.git --branch v1.17.0
-        cd googletest
-        cmake -Bbuild -DCMAKE_INSTALL_PREFIX="$HOME/.local" -Dgtest_force_shared_crt=1
-        cmake --build build --config Release
-        cmake --build build --target install --config Release
-        cd ../modern-cpp-template
+    - name: configure (Windows)
+      if: ${{ runner.os == 'Windows' }}
+      run: cmake -Bbuild -DCMAKE_INSTALL_PREFIX="$HOME/.local" -DCPM_SOURCE_CACHE="$env:CPM_SOURCE_CACHE"
 
     - name: configure
-      run: cmake -Bbuild -DCMAKE_INSTALL_PREFIX="$HOME/.local"
+      if: ${{ runner.os != 'Windows' }}
+      run: cmake -Bbuild -DCMAKE_INSTALL_PREFIX="$HOME/.local" -DCPM_SOURCE_CACHE="$CPM_SOURCE_CACHE"
       
-    - name: build
+    - name: build (Windows)
+      if: ${{ runner.os == 'Windows' }}
       run: cmake --build build --config "$env:BUILD_TYPE" -j4
 
-    - name: run tests
+    - name: build
+      if: ${{ runner.os != 'Windows' }}
+      run: cmake --build build --config "$BUILD_TYPE" -j4
+
+    - name: run tests (Windows)
+      if: ${{ runner.os == 'Windows' }}
       run: |
         cd build
         ctest -C "$env:BUILD_TYPE" -VV
+
+    - name: run tests
+      if: ${{ runner.os != 'Windows' }}
+      run: |
+        cd build
+        ctest -C "$BUILD_TYPE" -VV
 
     # for a release not containing directly the source code, replace the files archived
     # with the actual files needed (i.e. *.lib/*.a and *.h(pp))
@@ -128,7 +134,7 @@ jobs:
     steps:
     - name: set version name
       id: version
-      run: echo ::set-output name=name::${GITHUB_REF#refs/tags/}
+      run: echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
     - name: create release
       id: create_release

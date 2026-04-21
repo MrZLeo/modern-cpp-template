@@ -9,6 +9,7 @@ on:
 env:
   BUILD_TYPE: Release
   INSTALL_LOCATION: ".local"
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
 
 jobs:
   build:
@@ -19,26 +20,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: cache dependencies
+    - name: cache CPM downloads
       uses: actions/cache@v4
-      id: cache
       with:
-        path: ${{env.INSTALL_LOCATION}}
-        key: ${{ runner.os }}-dependencies-${{ hashFiles('CMakeLists.txt') }}
-
-    - name: install GoogleTest
-      if: ${{steps.cache.output.cache-hit != 'true'}}
-      run: |
-        cd ..
-        git clone https://github.com/google/googletest.git --branch v1.17.0
-        cd googletest
-        cmake -Bbuild -DCMAKE_INSTALL_PREFIX="$HOME/$env:INSTALL_LOCATION" -Dgtest_force_shared_crt=1
-        cmake --build build --config Release
-        cmake --build build --target install --config Release
-        cd ../modern-cpp-template
+        path: ${{ env.CPM_SOURCE_CACHE }}
+        key: ${{ runner.os }}-cpm-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'test/**') }}
 
     - name: configure
-      run: cmake -Bbuild -DCMAKE_INSTALL_PREFIX="$HOME/$env:INSTALL_LOCATION"
+      run: cmake -Bbuild -DCMAKE_INSTALL_PREFIX="$HOME/$env:INSTALL_LOCATION" -DCPM_SOURCE_CACHE="$env:CPM_SOURCE_CACHE"
       
     - name: build
       run: cmake --build build --config "$env:BUILD_TYPE" -j4
@@ -50,4 +39,3 @@ jobs:
 
     - name: install project
       run: cmake --build build --target install --config Release 
-

@@ -13,24 +13,11 @@ option(${PROJECT_NAME}_USE_ALT_NAMES "Use alternative names for the project, suc
 option(${PROJECT_NAME}_WARNINGS_AS_ERRORS "Treat compiler warnings as errors." OFF)
 
 #
-# Package managers
-#
-# Currently supporting: Conan, Vcpkg.
-
-option(${PROJECT_NAME}_ENABLE_CONAN "Enable the Conan package manager for this project." OFF)
-option(${PROJECT_NAME}_ENABLE_VCPKG "Enable the Vcpkg package manager for this project." OFF)
-
-#
 # Unit testing
 #
-# Currently supporting: GoogleTest, Catch2.
+# This template uses Catch2 via CPM.cmake when tests are enabled.
 
 option(${PROJECT_NAME}_ENABLE_UNIT_TESTING "Enable unit tests for the projects (from the `test` subfolder)." ON)
-
-option(${PROJECT_NAME}_USE_GTEST "Use the GoogleTest project for creating unit tests." ON)
-option(${PROJECT_NAME}_USE_GOOGLE_MOCK "Use the GoogleMock project for extending the unit tests." OFF)
-
-option(${PROJECT_NAME}_USE_CATCH2 "Use the Catch2 project for creating unit tests." OFF)
 
 #
 # Static analyzers
