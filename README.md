@@ -1,158 +1,301 @@
-[![Actions Status](https://github.com/filipdutescu/modern-cpp-template/workflows/MacOS/badge.svg)](https://github.com/filipdutescu/modern-cpp-template/actions)
-[![Actions Status](https://github.com/filipdutescu/modern-cpp-template/workflows/Windows/badge.svg)](https://github.com/filipdutescu/modern-cpp-template/actions)
-[![Actions Status](https://github.com/filipdutescu/modern-cpp-template/workflows/Ubuntu/badge.svg)](https://github.com/filipdutescu/modern-cpp-template/actions)
-[![codecov](https://codecov.io/gh/filipdutescu/modern-cpp-template/branch/master/graph/badge.svg)](https://codecov.io/gh/filipdutescu/modern-cpp-template)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/filipdutescu/modern-cpp-template)](https://github.com/filipdutescu/modern-cpp-template/releases)
-
 # Modern C++ Template
 
-A compact starting point for modern CMake-based C++ projects.
-
-## Features
-
-* Modern **CMake** project layout with install/export support
-* **CPM.cmake v0.42.0** as the only dependency mechanism
-* **Catch2 v3.11.0** as the only unit test framework
-* Automatic C++ standard selection: requires **at least C++20**, and upgrades to **C++23** or **C++26** when the active compiler supports it
-* Optional **Clang-Tidy** and **Cppcheck** integration
-* Optional **Doxygen** documentation target
-* Optional **code coverage**, **LTO**, **ASAN**, and **ccache**
-* GitHub Actions workflows for **Ubuntu**, **macOS**, **Windows**, and tagged releases
-* A permissive [Unlicense](https://unlicense.org/) license
+A small **CMake 4.4 / C++26** starting point with a reproducible Nix development
+environment, real library/application/header-only examples, and installable CMake
+packages. Dependencies use **CPM.cmake 0.43.1**; tests use **Catch2 3.11.0**.
 
 ## Requirements
 
-To use the template as shipped, you need:
+- CMake **4.4 or newer** and **Ninja**.
+- A compiler accepting C++26 mode and the library features your project uses.
+- Network access for uncached Nix packages or CPM dependencies.
 
-* **CMake 3.25+**
-* A C++ compiler with **at least C++20** support
-* Network access during configure when CPM needs to download dependencies
+C++26 is required without compiler extensions. The template does not silently
+fall back to C++23/20. Accepting a language mode does not mean a compiler and its
+standard library implement every feature in the standard.
 
-At configure time, the template inspects `CMAKE_CXX_COMPILE_FEATURES` and selects:
+Exceptions and the platform-default runtime remain enabled. A static library is
+not a fully static executable: this template does not force static libc, static
+MSVC CRT, or disable exceptions.
 
-* `C++26` when `cxx_std_26` is available
-* otherwise `C++23` when `cxx_std_23` is available
-* otherwise `C++20`
+## Quick start
 
-If the compiler cannot support C++20, configuration fails with a clear error.
-
-## Getting Started
-
-Create your project from this template, then rename the project-specific placeholders:
-
-1. Change the project name in [CMakeLists.txt](CMakeLists.txt) from `Project` to your real project name.
-2. Create `include/<your-project>/` and move or rename the sample headers accordingly.
-3. Update [cmake/SourcesAndHeaders.cmake](cmake/SourcesAndHeaders.cmake) with your real source, header, and test files.
-4. Rename [cmake/ProjectConfig.cmake.in](cmake/ProjectConfig.cmake.in) so the file name starts with your exact project name, for example `cmake/MyNewProjectConfig.cmake.in`.
-5. Update any remaining `Project_...` option names in workflows, scripts, and docs once the project name changes.
-
-The template defaults to a library build. If you want to build an executable, add a `src/main.cpp` and enable `Project_BUILD_EXECUTABLE=ON`.
-
-## Building
+With [Nix](https://nixos.org/download/) and flakes enabled:
 
 ```bash
-cmake -S . -B build \
-  -DCMAKE_INSTALL_PREFIX=/absolute/path/to/install \
-  -DCPM_SOURCE_CACHE=$HOME/.cache/CPM
-
-cmake --build build
-cmake --build build --target install
+nix develop --no-update-lock-file
+cmake -G Ninja -S . -B build-nix -DProject_ENABLE_CLANG_TIDY=ON
+cmake --build build-nix --parallel
+ctest --test-dir build-nix --output-on-failure
+cmake --build build-nix --target all_verify_header_sets --parallel
 ```
 
-`CPM_SOURCE_CACHE` is optional, but strongly recommended for faster repeated builds and CI runs.
+Without Nix, use the same CMake commands with a suitable native toolchain and a
+separate build directory. On Windows, run them from an MSVC developer shell.
+Ninja is a single-configuration generator: choose `-DCMAKE_BUILD_TYPE=Release`
+at configure time, rather than relying on `--config Release` to change a Debug
+build.
 
-If you only want to build the library without tests:
+## Project modes
+
+The stable library target is `Project`, with alias **`Project::Project`**, in all
+modes. Tests and the application link that same target; there is no duplicate
+library compiled only for tests.
+
+| Mode | Configure options | Output |
+| --- | --- | --- |
+| Static library (default) | `-DBUILD_SHARED_LIBS=OFF` | Compiled library |
+| Shared library | `-DBUILD_SHARED_LIBS=ON` | Shared library with explicit exported API |
+| Application | `-DProject_BUILD_EXECUTABLE=ON` | Library plus `Project_app`, installed as `project` |
+| Header-only library | `-DProject_BUILD_HEADERS_ONLY=ON` | INTERFACE target and inline implementation |
+
+Application and header-only options can be combined. `BUILD_SHARED_LIBS` has no
+binary to control in header-only mode. Header-only still uses CMake to generate
+its configuration/version headers; these are installed with the public headers.
 
 ```bash
-cmake -S . -B build \
-  -DCMAKE_INSTALL_PREFIX=/absolute/path/to/install \
-  -DCPM_SOURCE_CACHE=$HOME/.cache/CPM \
-  -DProject_ENABLE_UNIT_TESTING=OFF
+cmake -G Ninja -S . -B build-app -DProject_BUILD_EXECUTABLE=ON
+cmake --build build-app --parallel
+./build-app/bin/Debug/project
+
+cmake -G Ninja -S . -B build-header -DProject_BUILD_HEADERS_ONLY=ON
+cmake --build build-header --parallel
+ctest --test-dir build-header --output-on-failure
 ```
 
-## Testing
-
-Unit testing is enabled by default and uses **Catch2 v3** through CPM. No preinstalled Catch2 package is required.
+`Project_ENABLE_UNIT_TESTING` defaults ON for a top-level build and OFF when the
+project is embedded with `add_subdirectory`. To build without Catch2 or a network
+download of its bootstrap/dependencies:
 
 ```bash
-cmake -S . -B build -DCPM_SOURCE_CACHE=$HOME/.cache/CPM
-cmake --build build
-ctest --test-dir build -C Debug -VV
+cmake -G Ninja -S . -B build-library -DProject_ENABLE_UNIT_TESTING=OFF
+cmake --build build-library --parallel
 ```
 
-If you prefer to skip tests entirely:
+## Turning the template into your project
+
+1. Change `project(Project VERSION 0.1.0 ...)` in `CMakeLists.txt`.
+2. Rename `include/project/` and update source include paths, sample namespaces,
+   and generated-macro references such as `PROJECT_EXPORT` and
+   `PROJECT_HEADER_ONLY`. Generated headers use the lowercase project name;
+   macro prefixes use its uppercase C identifier.
+3. Update `cmake/SourcesAndHeaders.cmake`. It lists implementation files, public
+   and private headers, application entrypoints, tests, and the consumer example.
+4. Update `Project_...` options and `Project::Project` references in examples,
+   `test/verify.cmake`, `test/consumer`, workflows, and documentation. Adjust the
+   package version request and installed application name in the verification
+   examples. `make PROJECT_NAME=YourProject ...` selects the corresponding options.
+5. Replace the example API/tests and the release archive name with your own.
+
+The generic filename **`cmake/ProjectConfig.cmake.in` does not need renaming**:
+the generated config and target names follow `project(...)` automatically.
+
+Compiled libraries always generate an export header. Mark public APIs with the
+export macro, as the example does; visibility is hidden otherwise. This supports
+Windows shared libraries without relying on automatic symbol export. The old
+`USE_ALT_NAMES`, `VERBOSE_OUTPUT`, and `GENERATE_EXPORT_HEADER` options are removed.
+Use CMake's `--log-level=VERBOSE` for verbose configuration.
+
+## Dependencies
+
+To add a dependency, include `cmake/CPM.cmake` in the root file and use its target:
+
+```cmake
+include(cmake/CPM.cmake)
+CPMAddPackage(
+  NAME example_dependency
+  GITHUB_REPOSITORY owner/repository
+  VERSION 1.2.3
+  SYSTEM YES
+)
+target_link_libraries(${PROJECT_NAME} PRIVATE example_dependency::example_dependency)
+```
+
+Use PUBLIC/INTERFACE instead of PRIVATE when the public API requires it. Such
+exported dependencies also need matching `find_dependency(...)` calls in the
+package config. Do not copy dependency include paths or warning flags manually.
+
+The CPM bootstrap is downloaded with a checked SHA256. Without an explicit
+`CPM_SOURCE_CACHE`, dependencies stay in the build directory. An optional shared
+cache (`-DCPM_SOURCE_CACHE="$HOME/.cache/CPM"`) can save downloads across build
+directories; CI uses one. Disabling tests avoids the Catch2/CPM download unless
+you add another dependency yourself.
+
+## Install and consume
 
 ```bash
-cmake -S . -B build -DProject_ENABLE_UNIT_TESTING=OFF
+cmake --install build-nix --prefix "$PWD/install"
 ```
 
-## Documentation
+A separate project can use:
 
-Enable Doxygen and build the `doxygen-docs` target:
+```cmake
+find_package(Project 0.1 CONFIG REQUIRED)
+add_executable(example main.cpp)
+target_link_libraries(example PRIVATE Project::Project)
+```
+
+Pass the installation prefix in `CMAKE_PREFIX_PATH`. The imported target provides
+headers and C++26, but not project warning flags or analysis settings. Relative
+GNUInstallDirs layouts can be relocated, including to paths with spaces. When
+using a shared library on Windows, place the installed DLL beside the executable
+or include its `bin` directory in PATH.
+
+Version matching uses **SemanticVersion**: 0.x packages require the same minor
+version; 1.x and later require the same major. In either case the installed
+version must meet the requested minimum. Header-only package versions are
+architecture-independent; compiled packages retain CMake's architecture check.
+
+The installed sample application has a relative library RPATH on Linux/macOS.
+This does not bundle the system runtime or Nix store dependencies. Native
+installation packages are not automatically standalone distribution archives.
+
+## Development tools
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `Project_BUILD_EXECUTABLE` | OFF | Add the sample application |
+| `Project_BUILD_HEADERS_ONLY` | OFF | Use an INTERFACE library |
+| `Project_ENABLE_UNIT_TESTING` | Top-level only | Build Catch2 tests |
+| `Project_WARNINGS_AS_ERRORS` | OFF | Enforce warnings on project compilation |
+| `Project_ENABLE_CLANG_TIDY` | OFF | Analyze library/application sources |
+| `Project_ENABLE_CPPCHECK` | OFF | Analyze library/application sources |
+| `Project_ENABLE_CCACHE` | ON | Use ccache if no launcher was explicitly set |
+| `Project_ENABLE_CODE_COVERAGE` | OFF | Instrument owned targets with GCC/Clang |
+| `Project_ENABLE_LTO` | OFF | Enable supported interprocedural optimization |
+| `Project_ENABLE_ASAN` | OFF | Enable AddressSanitizer |
+| `Project_ENABLE_DOXYGEN` | OFF | Add `doxygen-docs` |
+
+Warnings and analyzers do not propagate to consumers or third-party targets.
+Catch2 macros are not included in the integrated clang-tidy checks. Since an
+INTERFACE library has no compilation unit, `test/verify.cmake` also runs a direct
+clang-tidy check of the public sample header when lint is enabled.
+
+Use `CLANGTIDY_EXTRA_ARGS` for additional semicolon-separated arguments.
+`CMAKE_CXX_COMPILER_LAUNCHER` (including an explicitly empty value) takes priority
+over automatic ccache; ccache does not wrap links. The `clang-format` target
+covers all owned sample/test/consumer files, including disabled targets, but not
+dependencies or generated headers. Override `Project_CLANG_FORMAT_BINARY` to
+select a formatter compatible with `.clang-format`.
+
+Coverage follows the chosen configuration's optimization settings, rather than
+silently forcing `-O0`. In particular, Nix hardening can add optimization even in
+a Debug build. Instrumented compiled libraries export their coverage/sanitizer
+link requirements where applicable. ASan requires a compatible dynamic runtime;
+do not combine it with a fully static executable link.
+
+The Makefile is optional and does not delete existing build trees:
 
 ```bash
-cmake -S . -B build \
-  -DProject_ENABLE_DOXYGEN=ON \
-  -DProject_ENABLE_UNIT_TESTING=OFF
-
-cmake --build build --target doxygen-docs
+make test BUILD_DIR=build-nix
+make headers BUILD_DIR=build-nix
+make coverage BUILD_DIR=build-nix
+make docs BUILD_DIR=build-nix
+make format BUILD_DIR=build-nix
+make install BUILD_DIR=build-nix INSTALL_LOCATION="$HOME/.local"
 ```
 
-This generates documentation under `docs/`.
+Coverage and documentation use separate build directories. Doxygen output is
+under the selected build tree, not in the source tree.
 
-## Common Options
+## Locked Nix environment
 
-The main project options live in [cmake/StandardSettings.cmake](cmake/StandardSettings.cmake).
+`flake.nix` supports native **x86_64/aarch64 Linux** and **Apple Silicon macOS**.
+The pinned nixpkgs has dropped Intel macOS support; adding an x86_64-darwin
+attribute would not make it usable. Linux uses the locked GCC stdenv; macOS
+uses the locked Clang stdenv. It also
+provides CMake, Ninja, Git, pkg-config, ccache, clang-tools, cppcheck, Doxygen,
+Graphviz, gcovr, GNU Make, and actionlint. Windows uses a native MSVC environment,
+not Nix. These are native environments, not cross-compilers.
 
-Useful examples:
+Linux static libc is available through a `LIBRARY_PATH` fallback, without
+shadowing shared libc during normal compiler checks. It does not change the
+template's default runtime linkage.
 
-* `Project_BUILD_EXECUTABLE=ON`
-* `Project_BUILD_HEADERS_ONLY=ON`
-* `Project_ENABLE_UNIT_TESTING=OFF`
-* `Project_ENABLE_CLANG_TIDY=ON`
-* `Project_ENABLE_CPPCHECK=ON`
-* `Project_ENABLE_CODE_COVERAGE=ON`
-* `Project_ENABLE_DOXYGEN=ON`
-* `Project_ENABLE_LTO=ON`
-* `Project_ENABLE_ASAN=ON`
+```bash
+nix flake check --no-update-lock-file --all-systems --no-build
+nix fmt -- --check flake.nix
+# An intentional toolchain update; review and commit the resulting lock diff:
+nix flake update nixpkgs
+```
 
-## Make Targets
+Flake evaluation for a system is not proof of a successful build on that system.
+Always distinguish compilation, analyzer compatibility, tests, and installation
+checks; a compiler succeeding does not establish that clang-tidy can analyze
+every use of its standard library.
 
-The included [Makefile](Makefile) provides shortcuts for local development:
+## Containers
 
-* `make test`
-* `make coverage`
-* `make docs`
-* `make install`
-* `make format`
+The development image uses `flake.nix` / `flake.lock`, not a second apt/pip C++
+toolchain. Architecture-specific rolling `nixpkgs/nix-flakes` bases are selected
+for amd64 and arm64. Only the flake metadata enters the build context; sources
+are mounted at runtime. The image preloads the dev shell and runs commands via
+`nix develop --no-update-lock-file --command`.
 
-These targets use a local `.cpm-cache/` directory automatically.
+```bash
+docker build --pull -t cpp-template-dev .
+docker run --rm -it \
+  --mount type=bind,source="$PWD",target=/workspace \
+  cpp-template-dev
+```
 
-## Continuous Integration
+Inside the shell, build into `build-container`, not a host-toolchain build tree.
+CPM uses default per-build storage; the source bind mount preserves the build
+and downloaded dependencies without a separate cache variable or volume.
+Container commands run as root by default, so Linux bind mounts can contain
+root-owned build files. Applications with permission-sensitive tests should run
+those tests as an ordinary user.
 
-GitHub Actions workflows are included for:
+On Apple Silicon, Apple's [`container`](https://github.com/apple/container) can
+build the same native Linux arm64 image:
 
-* Ubuntu build, test, coverage, and install
-* macOS build, test, and install
-* Windows build, test, and install
-* Tagged release archives
+```bash
+container system start --enable-kernel-install
+container build --platform linux/arm64 --build-arg TARGETARCH=arm64 \
+  --pull -t cpp-template-dev .
+container run --rm -it --cpus 4 --memory 8G \
+  --mount type=bind,source="$PWD",target=/workspace \
+  cpp-template-dev
+```
 
-All workflows cache `CPM_SOURCE_CACHE` so Catch2 and future CPM-managed dependencies are reused across runs.
+Apple container 1.5.0 requires the explicit `TARGETARCH`; `--platform` alone does
+not populate it. Unlike `run`, `exec` does not invoke the image entrypoint: use
+`nix develop --no-update-lock-file --command ...` explicitly when executing a
+command in an existing container.
 
-To skip CI on a particular commit, include either `[skip ci]` or `[ci skip]` in the commit message.
+## Verification and CI
 
-## Contributing
+Run the same build/install checks used by CI inside the selected toolchain:
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for contribution and pull request guidelines.
+```bash
+cmake -DMODE=static -DENABLE_LINT=ON -P test/verify.cmake
+cmake -DMODE=shared -DENABLE_LINT=ON -P test/verify.cmake
+cmake -DMODE=executable -DENABLE_LINT=ON -P test/verify.cmake
+cmake -DMODE=header-only -DENABLE_LINT=ON -P test/verify.cmake
+```
 
-## Versioning
+Each mode builds with warnings-as-errors, runs tests and header checks, installs,
+moves the prefix to a path with spaces, and compiles/runs a real installed-package
+consumer. The consumer requests C++23, verifying that the imported target raises
+its requirement to C++26 without exporting warning flags. Shared-library checks
+also run the relocated installed application. `BUILD_DIR`, `CONFIG`, and
+`ENABLE_COVERAGE` customize the driver.
 
-This project follows [SemVer](https://semver.org/).
+Ubuntu and `macos-latest` workflows use the locked Nix shell. The current
+`macos-latest` runner is Apple Silicon; its OS image rolls forward while the
+compiler and build tools remain pinned by the flake lock. Windows uses MSVC with CMake
+4.4+ and Ninja. CI covers the four configurations above; Ubuntu also emits a
+GCC/gcovr coverage report. Codecov upload is optional/non-fatal and can use the
+repository's `CODECOV_TOKEN` secret. Toolchain-specific failures must not be
+hidden by globally disabling diagnostics.
 
-## Authors
+Tag builds reuse those checks before publishing **source archives** using
+`git archive`, excluding caches, build products, and `.git` credentials. Replace
+the archive name in `.github/workflows/release.yml` when creating your project.
 
-* **Filip-Ioan Dutescu** - [@filipdutescu](https://github.com/filipdutescu)
+## Contributing and license
 
-## License
-
-This template is licensed under the [Unlicense](https://unlicense.org/). See [LICENSE](LICENSE) for details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and
+[PULL_REQUEST_TEMPLATE.md](PULL_REQUEST_TEMPLATE.md). The template follows
+[SemVer](https://semver.org/) and is licensed under the [Unlicense](LICENSE).
+Originally created by **Filip-Ioan Dutescu** ([filipdutescu](https://github.com/filipdutescu)).

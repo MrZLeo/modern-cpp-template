@@ -1,0 +1,5 @@
+# Build only the locked tool environment; mount project sources at runtime.
+*
+!Dockerfile
+!flake.nix
+!flake.lock

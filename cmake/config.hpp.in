@@ -1,0 +1,8 @@
+#ifndef @PROJECT_NAME_UPPERCASE@_CONFIG_HPP_
+#define @PROJECT_NAME_UPPERCASE@_CONFIG_HPP_
+
+// This flag selects a preprocessor branch, so it cannot be a C++ constant.
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define @PROJECT_NAME_UPPERCASE@_HEADER_ONLY @PROJECT_HEADER_ONLY@
+
+#endif // @PROJECT_NAME_UPPERCASE@_CONFIG_HPP_

@@ -1,16 +1,17 @@
 set(sources
-    src/tmp.cpp
+  "${PROJECT_SOURCE_DIR}/src/tmp.cpp"
 )
-
-set(exe_sources
-		src/main.cpp
-		${sources}
-)
-
 set(headers
-    include/project/tmp.hpp
+  "${PROJECT_SOURCE_DIR}/include/project/tmp.hpp"
 )
-
+set(private_headers)
+set(exe_sources
+  "${PROJECT_SOURCE_DIR}/src/main.cpp"
+)
+set(exe_headers)
 set(test_sources
-  src/tmp_test.cpp
+  "${PROJECT_SOURCE_DIR}/test/src/tmp_test.cpp"
+)
+set(check_sources
+  "${PROJECT_SOURCE_DIR}/test/consumer/main.cpp"
 )

@@ -1,5 +1,8 @@
-[Bb]uild/*
-.cpm-cache/*
+[Bb]uild*/
+.cpm-cache/
+/result
+/result-*
+.direnv/
 [Dd]ocs/*
 CMakeCache.*
 CMakeFiles/*

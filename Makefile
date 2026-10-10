@@ -1,65 +1,39 @@
-.PHONY: install coverage test docs help
+.PHONY: configure build test headers coverage docs install format help
 .DEFAULT_GOAL := help
 
-define BROWSER_PYSCRIPT
-import os, webbrowser, sys
+BUILD_DIR ?= build
+BUILD_TYPE ?= Debug
+INSTALL_LOCATION ?= $(HOME)/.local
+PROJECT_NAME ?= Project
+CMAKE_FLAGS ?=
 
-try:
-	from urllib import pathname2url
-except:
-	from urllib.request import pathname2url
+help: ## Show available targets
+	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "%-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-webbrowser.open("file://" + pathname2url(os.path.abspath(sys.argv[1])))
-endef
-export BROWSER_PYSCRIPT
+configure: ## Configure without deleting an existing build tree
+	cmake -G Ninja -S . -B "$(BUILD_DIR)" -DCMAKE_BUILD_TYPE="$(BUILD_TYPE)" $(CMAKE_FLAGS)
 
-define PRINT_HELP_PYSCRIPT
-import re, sys
+build: configure ## Build the configured targets
+	cmake --build "$(BUILD_DIR)" --parallel
 
-for line in sys.stdin:
-	match = re.match(r'^([a-zA-Z_-]+):.*?## (.*)$$', line)
-	if match:
-		target, help = match.groups()
-		print("%-20s %s" % (target, help))
-endef
-export PRINT_HELP_PYSCRIPT
+test: build ## Run unit tests
+	ctest --test-dir "$(BUILD_DIR)" --output-on-failure --no-tests=error
 
-BROWSER := python3 -c "$$BROWSER_PYSCRIPT"
-INSTALL_LOCATION := ~/.local
-CPM_SOURCE_CACHE := $(CURDIR)/.cpm-cache
-CMAKE_FLAGS := -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION) -DCPM_SOURCE_CACHE=$(CPM_SOURCE_CACHE)
+headers: configure ## Verify public, private and generated header sets
+	cmake --build "$(BUILD_DIR)" --target all_verify_header_sets --parallel
 
-help:
-	@python3 -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
+coverage: ## Build and test with coverage in a separate directory
+	cmake -G Ninja -S . -B "$(BUILD_DIR)-coverage" -DCMAKE_BUILD_TYPE=Debug $(CMAKE_FLAGS) -D$(PROJECT_NAME)_ENABLE_UNIT_TESTING=ON -D$(PROJECT_NAME)_ENABLE_CODE_COVERAGE=ON
+	cmake --build "$(BUILD_DIR)-coverage" --parallel
+	ctest --test-dir "$(BUILD_DIR)-coverage" --output-on-failure --no-tests=error
+	@echo "Coverage data is in $(BUILD_DIR)-coverage; use gcovr with GCC or llvm-cov gcov with Clang."
 
-test: ## run tests quickly with ctest
-	rm -rf build/
-	cmake -Bbuild $(CMAKE_FLAGS) -DProject_ENABLE_UNIT_TESTING=ON -DCMAKE_BUILD_TYPE="Release"
-	cmake --build build --config Release
-	cd build/ && ctest -C Release -VV
+docs: ## Generate Doxygen documentation in a separate build tree
+	cmake -G Ninja -S . -B "$(BUILD_DIR)-docs" $(CMAKE_FLAGS) -D$(PROJECT_NAME)_ENABLE_UNIT_TESTING=OFF -D$(PROJECT_NAME)_ENABLE_DOXYGEN=ON
+	cmake --build "$(BUILD_DIR)-docs" --target doxygen-docs
 
-coverage: ## check code coverage quickly GCC
-	rm -rf build/
-	cmake -Bbuild $(CMAKE_FLAGS) -DProject_ENABLE_UNIT_TESTING=ON -DProject_ENABLE_CODE_COVERAGE=ON
-	cmake --build build --config Release
-	cd build/ && ctest -C Release -VV
-	cd .. && (bash -c "find . -type f -name '*.gcno' -exec gcov -pb {} +" || true)
+install: build ## Install the library and optional application
+	cmake --install "$(BUILD_DIR)" --prefix "$(INSTALL_LOCATION)"
 
-docs: ## generate Doxygen HTML documentation, including API docs
-	rm -rf docs/
-	rm -rf build/
-	cmake -Bbuild $(CMAKE_FLAGS) -DProject_ENABLE_UNIT_TESTING=OFF -DProject_ENABLE_DOXYGEN=ON
-	cmake --build build --config Release
-	cmake --build build --target doxygen-docs
-	$(BROWSER) docs/html/index.html
-
-install: ## install the package to the `INSTALL_LOCATION`
-	rm -rf build/
-	cmake -Bbuild $(CMAKE_FLAGS) -DProject_ENABLE_UNIT_TESTING=OFF
-	cmake --build build --config Release
-	cmake --build build --target install --config Release
-
-format: ## format the project sources
-	rm -rf build/
-	cmake -Bbuild $(CMAKE_FLAGS) -DProject_ENABLE_UNIT_TESTING=OFF
-	cmake --build build --target clang-format
+format: configure ## Format owned sources, excluding dependencies and generated files
+	cmake --build "$(BUILD_DIR)" --target clang-format

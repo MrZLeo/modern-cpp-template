@@ -2,45 +2,61 @@ name: Ubuntu
 
 on:
   push:
-    branches: [ master ]
+    branches: [master, main]
   pull_request:
-    branches: [ master ]
+  workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+permissions:
+  contents: read
 
 env:
-  BUILD_TYPE: Release
-  INSTALL_LOCATION: .local
   CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
-
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [static, shared, executable, header-only]
     steps:
-    - uses: actions/checkout@v4
-      
-    - name: cache CPM downloads
-      uses: actions/cache@v4
-      with:
-        path: ${{ env.CPM_SOURCE_CACHE }}
-        key: ${{ runner.os }}-cpm-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'test/**') }}
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-build-tools
+      - name: Build, lint, test, and consume relocated installation
+        run: >-
+          nix develop --no-update-lock-file --command
+          cmake -DMODE=${{ matrix.mode }} -DENABLE_LINT=ON -P test/verify.cmake
 
-    - name: configure
-      run: cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/$INSTALL_LOCATION -DCPM_SOURCE_CACHE=$CPM_SOURCE_CACHE -DProject_ENABLE_CODE_COVERAGE=1
-      
-    - name: build
-      run: cmake --build build --config $BUILD_TYPE -j4
-
-    - name: run tests
-      run: |
-        cd build
-        ctest -C $BUILD_TYPE -VV
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        fail_ci_if_error: false
-
-    - name: install project
-      run: cmake --build build --target install --config Release 
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-build-tools
+      - name: Verify coverage build and installed runtime requirements
+        run: >-
+          nix develop --no-update-lock-file --command
+          cmake -DMODE=static -DBUILD_DIR=build/coverage
+          -DENABLE_COVERAGE=ON -P test/verify.cmake
+      - name: Generate coverage report
+        run: >-
+          nix develop --no-update-lock-file --command
+          gcovr --root . --filter src/ --filter include/
+          --xml-pretty --output build/coverage.xml build/coverage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-coverage
+          path: build/coverage.xml
+          if-no-files-found: error
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: build/coverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}

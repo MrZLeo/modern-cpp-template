@@ -1,3 +1,3 @@
 #include "project/tmp.hpp"
 
-int tmp::add(int a, int b) { return a + b; }
+int tmp::add(int lhs, int rhs) noexcept { return lhs + rhs; }

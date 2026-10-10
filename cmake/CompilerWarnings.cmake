@@ -61,11 +61,6 @@ function(set_project_warnings project_name)
                  # (ie printf)
   )
 
-  if (${PROJECT_NAME}_WARNINGS_AS_ERRORS)
-    set(CLANG_WARNINGS ${CLANG_WARNINGS} -Werror)
-    set(MSVC_WARNINGS ${MSVC_WARNINGS} /WX)
-  endif()
-
   set(GCC_WARNINGS
       ${CLANG_WARNINGS}
       -Wmisleading-indentation # warn if indentation implies blocks where blocks
@@ -87,13 +82,6 @@ function(set_project_warnings project_name)
     message(AUTHOR_WARNING "No compiler warnings set for '${CMAKE_CXX_COMPILER_ID}' compiler.")
   endif()
 
-  if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
-        target_compile_options(${project_name} INTERFACE ${PROJECT_WARNINGS})
-  else()
-        target_compile_options(${project_name} PUBLIC ${PROJECT_WARNINGS})
-  endif()
-
-  if(NOT TARGET ${project_name})
-    message(AUTHOR_WARNING "${project_name} is not a target, thus no compiler warning were added.")
-  endif()
+  target_compile_options(${project_name} PRIVATE ${PROJECT_WARNINGS})
+  set_property(TARGET ${project_name} PROPERTY COMPILE_WARNING_AS_ERROR ${${PROJECT_NAME}_WARNINGS_AS_ERRORS})
 endfunction()

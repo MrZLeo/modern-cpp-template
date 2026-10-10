@@ -1,0 +1,23 @@
+cmake_minimum_required(VERSION 4.4)
+project(InstalledConsumer LANGUAGES CXX)
+
+# The imported target must raise this to the template's actual requirement.
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(PACKAGE_VERSION_REQUEST "0.1" CACHE STRING "Version or range requested from the installed package.")
+find_package(Project ${PACKAGE_VERSION_REQUEST} CONFIG REQUIRED)
+get_target_property(features Project::Project INTERFACE_COMPILE_FEATURES)
+if(NOT "cxx_std_26" IN_LIST features)
+  message(FATAL_ERROR "The installed target did not export its C++26 requirement.")
+endif()
+get_target_property(options Project::Project INTERFACE_COMPILE_OPTIONS)
+if(options)
+  message(FATAL_ERROR "Project-private compiler options leaked to the consumer: ${options}")
+endif()
+
+add_executable(consumer main.cpp)
+target_link_libraries(consumer PRIVATE Project::Project)
+enable_testing()
+add_test(NAME installed-consumer COMMAND consumer)

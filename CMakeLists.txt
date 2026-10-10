@@ -1,362 +1,152 @@
-cmake_minimum_required(VERSION 3.25)
-
-#
-# Project details
-#
-
-project(
-  "Project"
-  VERSION 0.1.0
-  LANGUAGES CXX
-)
-
-#
-# Set project options
-#
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "") # works
-
-include(cmake/StandardSettings.cmake)
-include(cmake/StaticAnalyzers.cmake)
-include(cmake/Utils.cmake)
-include(cmake/CPM.cmake)
-include(cmake/ProjectStandard.cmake)
-
-project_detect_cxx_standard(PROJECT_CXX_STANDARD)
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "Debug")
-endif()
-message(STATUS "Started CMake for ${PROJECT_NAME} v${PROJECT_VERSION}...\n")
-
-if (UNIX)
-    add_compile_options("$<$<CONFIG:DEBUG>:-D_DEBUG>")    #this will allow to use same _DEBUG macro available in both Linux as well as Windows - MSCV environment. Easy to put Debug specific code.
-endif (UNIX)
-
-
-#
-# Setup alternative names
-#
-
-if(${PROJECT_NAME}_USE_ALT_NAMES)
-  string(TOLOWER ${PROJECT_NAME} PROJECT_NAME_LOWERCASE)
-  string(TOUPPER ${PROJECT_NAME} PROJECT_NAME_UPPERCASE)
-else()
-  set(PROJECT_NAME_LOWERCASE ${PROJECT_NAME})
-  set(PROJECT_NAME_UPPERCASE ${PROJECT_NAME})
-endif()
-
-#
-# Prevent building in the source directory
-#
+cmake_minimum_required(VERSION 4.4)
+project(Project VERSION 0.1.0 LANGUAGES CXX)
 
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
-  message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there.\n")
+  message(FATAL_ERROR "In-source builds are not supported. Use cmake -G Ninja -S . -B build.")
 endif()
 
-#
-# Create library, setup header and source files
-#
+# Initialize project targets and dependencies before they are created.
+set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+string(TOLOWER "${PROJECT_NAME}" PROJECT_NAME_LOWERCASE)
+string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UPPERCASE)
+string(MAKE_C_IDENTIFIER "${PROJECT_NAME_UPPERCASE}" PROJECT_NAME_UPPERCASE)
 
-# Find all headers and implementation files
-include(cmake/SourcesAndHeaders.cmake)
-
-if(${PROJECT_NAME}_BUILD_EXECUTABLE)
-  add_executable(${PROJECT_NAME} ${exe_sources})
-
-  if(${PROJECT_NAME}_VERBOSE_OUTPUT)
-    verbose_message("Found the following sources:")
-    foreach(source IN LISTS exe_sources)
-      verbose_message("* ${source}")
-    endforeach()
-  endif()
-
-  if(${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-    add_library(${PROJECT_NAME}_LIB ${headers} ${sources})
-
-    if(${PROJECT_NAME}_VERBOSE_OUTPUT)
-      verbose_message("Found the following headers:")
-      foreach(header IN LISTS headers)
-        verbose_message("* ${header}")
-      endforeach()
-    endif()
-  endif()
-elseif(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
-  add_library(${PROJECT_NAME} INTERFACE)
-
-  if(${PROJECT_NAME}_VERBOSE_OUTPUT)
-    verbose_message("Found the following headers:")
-    foreach(header IN LISTS headers)
-      verbose_message("* ${header}")
-    endforeach()
-  endif()
-else()
-  add_library(
-    ${PROJECT_NAME}
-    ${headers}
-    ${sources}
-  )
-
-  if(${PROJECT_NAME}_VERBOSE_OUTPUT)
-    verbose_message("Found the following sources:")
-    foreach(source IN LISTS sources)
-      verbose_message("* ${source}")
-    endforeach()
-    verbose_message("Found the following headers:")
-    foreach(header IN LISTS headers)
-      verbose_message("* ${header}")
-    endforeach()
-  endif()
-endif()
-
-set_target_properties(
-  ${PROJECT_NAME}
-  PROPERTIES
-  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}"
-)
-if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-  set_target_properties(
-    ${PROJECT_NAME}_LIB
-    PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
-    OUTPUT_NAME ${PROJECT_NAME}
-  )
-endif()
-
-message(STATUS "Added all header and implementation files.\n")
-
-#
-# Set the project standard and warnings
-#
-
-if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
-  project_apply_cxx_standard(${PROJECT_NAME} INTERFACE)
-else()
-  project_apply_cxx_standard(${PROJECT_NAME} PUBLIC)
-
-  if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-    project_apply_cxx_standard(${PROJECT_NAME}_LIB PUBLIC)
-  endif()
-endif()
+include(cmake/StandardSettings.cmake)
 include(cmake/CompilerWarnings.cmake)
-set_project_warnings(${PROJECT_NAME})
-verbose_message("Applied compiler warnings. Using standard C++${PROJECT_CXX_STANDARD}.\n")
+include(cmake/StaticAnalyzers.cmake)
+include(cmake/SourcesAndHeaders.cmake)
+include(cmake/Utils.cmake)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
-#
-# Enable Doxygen
-#
-
-include(cmake/Doxygen.cmake)
-
-#
-# Model project dependencies
-#
-
-# Identify and link with the specific "packages" the project uses
-#CPMAddPackage(
-#  NAME dependency1
-#  GITHUB_REPOSITORY owner/dependency1
-#  VERSION 1.2.3
-#  OPTIONS
-#    "DEPENDENCY1_BUILD_TESTS OFF"
-#)
-#target_link_libraries(
-#  ${PROJECT_NAME}
-#  PUBLIC
-#    dependency1::dependency1
-#)
-#if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-#  target_link_libraries(
-#    ${PROJECT_NAME}_LIB
-#    PUBLIC
-#      dependency1::dependency1
-#  )
-#endif()
-
-# For Windows, it is necessary to link with the MultiThreaded library.
-# Depending on how the rest of the project's dependencies are linked, it might be necessary
-# to change the line to statically link with the library.
-#
-# This is done as follows:
-#
-# set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-#
-# On Linux and Mac this variable is ignored. If any issues rise from it, try commenting it out
-# and letting CMake decide how to link with it.
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
-
-verbose_message("Successfully added all dependencies and linked against them.")
-
-#
-# Set the build/user include directories
-#
-
-# Allow usage of header files in the `src` directory, but only for utilities
+set(generated_include_dir "${PROJECT_BINARY_DIR}/include")
+set(generated_project_dir "${generated_include_dir}/${PROJECT_NAME_LOWERCASE}")
+set(PROJECT_HEADER_ONLY 0)
 if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
-  target_include_directories(
-    ${PROJECT_NAME}
-    INTERFACE
-    $<INSTALL_INTERFACE:include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  )
+  set(PROJECT_HEADER_ONLY 1)
+  add_library(${PROJECT_NAME} INTERFACE)
+  set(library_scope INTERFACE)
 else()
-  target_include_directories(
-    ${PROJECT_NAME}
-    PUBLIC
-    $<INSTALL_INTERFACE:include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
+  add_library(${PROJECT_NAME} ${sources})
+  set(library_scope PUBLIC)
+  set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    VERIFY_PRIVATE_HEADER_SETS ON
   )
-  if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-    target_include_directories(
-      ${PROJECT_NAME}_LIB
-      PUBLIC
-      $<INSTALL_INTERFACE:include>
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-      PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}/src
+  if(private_headers)
+    target_sources(${PROJECT_NAME} PRIVATE FILE_SET private_headers TYPE HEADERS
+      BASE_DIRS "${PROJECT_SOURCE_DIR}/src"
+      FILES ${private_headers}
     )
   endif()
+  target_include_directories(${PROJECT_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/src")
+  include(GenerateExportHeader)
+  generate_export_header(${PROJECT_NAME}
+    EXPORT_FILE_NAME "${generated_project_dir}/export.hpp"
+    EXPORT_MACRO_NAME "${PROJECT_NAME_UPPERCASE}_EXPORT"
+    NO_EXPORT_MACRO_NAME "${PROJECT_NAME_UPPERCASE}_NO_EXPORT"
+    DEPRECATED_MACRO_NAME "${PROJECT_NAME_UPPERCASE}_DEPRECATED"
+    STATIC_DEFINE "${PROJECT_NAME_UPPERCASE}_STATIC_DEFINE"
+  )
+  set_project_warnings(${PROJECT_NAME})
+  project_enable_static_analysis(${PROJECT_NAME})
+  if(${PROJECT_NAME}_ENABLE_CODE_COVERAGE)
+    target_compile_options(${PROJECT_NAME} PRIVATE --coverage)
+    target_link_options(${PROJECT_NAME} PUBLIC --coverage)
+  endif()
+  if(${PROJECT_NAME}_ENABLE_ASAN AND NOT MSVC)
+    target_link_options(${PROJECT_NAME} PUBLIC -fsanitize=address)
+  endif()
 endif()
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+target_compile_features(${PROJECT_NAME} ${library_scope} cxx_std_26)
 
-message(STATUS "Finished setting up include directories.")
+configure_file(cmake/config.hpp.in "${generated_project_dir}/config.hpp" @ONLY)
+configure_file(cmake/version.hpp.in "${generated_project_dir}/version.hpp" @ONLY)
+set(generated_headers
+  "${generated_project_dir}/config.hpp"
+  "${generated_project_dir}/version.hpp"
+)
+if(NOT ${PROJECT_NAME}_BUILD_HEADERS_ONLY)
+  list(APPEND generated_headers "${generated_project_dir}/export.hpp")
+endif()
+target_sources(${PROJECT_NAME} ${library_scope}
+  FILE_SET HEADERS
+    BASE_DIRS "${PROJECT_SOURCE_DIR}/include"
+    FILES ${headers}
+  FILE_SET generated_headers TYPE HEADERS
+    BASE_DIRS "${generated_include_dir}"
+    FILES ${generated_headers}
+)
+set_target_properties(${PROJECT_NAME} PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON)
 
-#
-# Provide alias to library for
-#
+# Add dependencies here with include(cmake/CPM.cmake) and CPMAddPackage(... SYSTEM YES).
+# Link their targets with PRIVATE/PUBLIC/INTERFACE according to the API requirements.
 
 if(${PROJECT_NAME}_BUILD_EXECUTABLE)
-  add_executable(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
-else()
-  add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+  # Always test and export the same library that the executable uses.
+  add_executable(${PROJECT_NAME}_app ${exe_sources} ${exe_headers})
+  add_executable(${PROJECT_NAME}::app ALIAS ${PROJECT_NAME}_app)
+  set_target_properties(${PROJECT_NAME}_app PROPERTIES OUTPUT_NAME "${PROJECT_NAME_LOWERCASE}")
+  target_link_libraries(${PROJECT_NAME}_app PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
+  set_project_warnings(${PROJECT_NAME}_app)
+  project_enable_static_analysis(${PROJECT_NAME}_app)
+  if(${PROJECT_NAME}_ENABLE_CODE_COVERAGE)
+    target_compile_options(${PROJECT_NAME}_app PRIVATE --coverage)
+    target_link_options(${PROJECT_NAME}_app PRIVATE --coverage)
+  endif()
+  if(BUILD_SHARED_LIBS AND NOT ${PROJECT_NAME}_BUILD_HEADERS_ONLY)
+    file(RELATIVE_PATH library_from_bin "${CMAKE_INSTALL_FULL_BINDIR}" "${CMAKE_INSTALL_FULL_LIBDIR}")
+    if(APPLE)
+      set_property(TARGET ${PROJECT_NAME}_app PROPERTY INSTALL_RPATH "@loader_path/${library_from_bin}")
+    elseif(UNIX)
+      set_property(TARGET ${PROJECT_NAME}_app PROPERTY INSTALL_RPATH "$ORIGIN/${library_from_bin}")
+    endif()
+  endif()
+  install(TARGETS ${PROJECT_NAME}_app RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 endif()
 
-verbose_message("Project is now aliased as ${PROJECT_NAME}::${PROJECT_NAME}.\n")
-
-#
-# Format the project using the `clang-format` target (i.e: cmake --build build --target clang-format)
-#
-
-add_clang_format_target()
-
-#
-# Install library for easy downstream inclusion
-#
-
-include(GNUInstallDirs)
-install(
-  TARGETS
-  ${PROJECT_NAME}
-  EXPORT
-  ${PROJECT_NAME}Targets
-  LIBRARY DESTINATION
-  ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION
-  ${CMAKE_INSTALL_BINDIR}
-  ARCHIVE DESTINATION
-  ${CMAKE_INSTALL_LIBDIR}
-  INCLUDES DESTINATION
-  include
-  PUBLIC_HEADER DESTINATION
-  include
+install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME}Targets
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  FILE_SET HEADERS DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+  FILE_SET generated_headers DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
-
-install(
-  EXPORT
-  ${PROJECT_NAME}Targets
-  FILE
-  ${PROJECT_NAME}Targets.cmake
-  NAMESPACE
-  ${PROJECT_NAME}::
-  DESTINATION
-  ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+install(EXPORT ${PROJECT_NAME}Targets
+  NAMESPACE ${PROJECT_NAME}::
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
 )
-
-#
-# Add version header
-#
-
-configure_file(
-  ${CMAKE_CURRENT_LIST_DIR}/cmake/version.hpp.in
-  include/${PROJECT_NAME_LOWERCASE}/version.hpp
-  @ONLY
-)
-
-install(
-  FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/include/${PROJECT_NAME_LOWERCASE}/version.hpp
-  DESTINATION
-  include/${PROJECT_NAME_LOWERCASE}
-)
-
-#
-# Install the `include` directory
-#
-
-install(
-  DIRECTORY
-  include/${PROJECT_NAME_LOWERCASE}
-  DESTINATION
-  include
-)
-
-verbose_message("Install targets successfully built. Install with `cmake --build <build_directory> --target install --config <build_config>`.")
-
-#
-# Quick `ConfigVersion.cmake` creation
-#
-
-include(CMakePackageConfigHelpers)
-write_basic_package_version_file(
-  ${PROJECT_NAME}ConfigVersion.cmake
-  VERSION
-  ${PROJECT_VERSION}
-  COMPATIBILITY
-  SameMajorVersion
-)
-
-configure_package_config_file(
-  ${CMAKE_CURRENT_LIST_DIR}/cmake/${PROJECT_NAME}Config.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
-  INSTALL_DESTINATION
-  ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-)
-
-install(
-  FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
-  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
-  DESTINATION
-  ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-)
-
-#
-# Generate export header if specified
-#
-
-if(${PROJECT_NAME}_GENERATE_EXPORT_HEADER)
-  include(GenerateExportHeader)
-  generate_export_header(${PROJECT_NAME})
-  install(
-    FILES
-    ${PROJECT_BINARY_DIR}/${PROJECT_NAME_LOWERCASE}_export.h
-    DESTINATION
-    include
-  )
-
-  message(STATUS "Generated the export header `${PROJECT_NAME_LOWERCASE}_export.h` and installed it.")
+set(version_arch_option)
+if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
+  set(version_arch_option ARCH_INDEPENDENT)
 endif()
+write_basic_package_version_file("${PROJECT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+  VERSION "${PROJECT_VERSION}"
+  COMPATIBILITY SemanticVersion
+  ${version_arch_option}
+)
+# This template filename stays unchanged when the project is renamed.
+configure_package_config_file(cmake/ProjectConfig.cmake.in
+  "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
+  PATH_VARS CMAKE_INSTALL_INCLUDEDIR
+)
+install(FILES
+  "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+  "${PROJECT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
+)
 
-message(STATUS "Finished building requirements for installing the package.\n")
-
-#
-# Unit testing setup
-#
-
+include(cmake/Doxygen.cmake)
+if(PROJECT_IS_TOP_LEVEL)
+  add_clang_format_target()
+endif()
 if(${PROJECT_NAME}_ENABLE_UNIT_TESTING)
   enable_testing()
-  message(STATUS "Build unit tests for the project. Tests should always be found in the test folder\n")
   add_subdirectory(test)
 endif()

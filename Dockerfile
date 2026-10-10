@@ -1,25 +1,13 @@
-FROM ubuntu:24.04
+ARG TARGETARCH
+FROM --platform=linux/amd64 nixpkgs/nix-flakes:latest-x86_64-linux AS nix-amd64
+FROM --platform=linux/arm64 nixpkgs/nix-flakes:latest-aarch64-linux AS nix-arm64
+FROM nix-${TARGETARCH} AS dev
 
-ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /workspace
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    ca-certificates \
-    ccache \
-    clang \
-    clang-format \
-    clang-tidy \
-    cmake \
-    cppcheck \
-    curl \
-    doxygen \
-    git \
-    graphviz \
-    make \
-    ninja-build \
-    python3 \
-    tar \
-    unzip \
-    vim \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
+COPY flake.nix flake.lock ./
+RUN git config --global --add safe.directory /workspace \
+    && nix develop --no-update-lock-file --command true
+
+ENTRYPOINT ["nix", "develop", "--no-update-lock-file", "--command"]
+CMD ["bash"]
