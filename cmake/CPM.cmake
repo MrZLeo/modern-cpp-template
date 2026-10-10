@@ -1,4 +1,4 @@
-set(PROJECT_CPM_VERSION 0.42.0)
+set(PROJECT_CPM_VERSION 0.43.1)
 set(PROJECT_CPM_URL "https://github.com/cpm-cmake/CPM.cmake/releases/download/v${PROJECT_CPM_VERSION}/CPM.cmake")
 
 if(NOT CPM_SOURCE_CACHE AND DEFINED ENV{CPM_SOURCE_CACHE})
